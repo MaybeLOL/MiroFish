@@ -26,6 +26,27 @@
 
 ## ⚡ Overview
 
+> **This is a modified fork of [666ghj/MiroFish](https://github.com/666ghj/MiroFish).** The original project uses Zep Cloud for knowledge graph storage. This fork replaces Zep Cloud with a fully local stack — no cloud dependency, no usage limits.
+
+### What Changed (vs upstream)
+
+| Component | Original (Zep Cloud) | This Fork (Local) |
+|-----------|---------------------|-------------------|
+| Graph Storage | Zep Cloud API | Neo4j (local) |
+| Entity Extraction | Zep built-in | LLM-based (any OpenAI-compatible API) |
+| Semantic Search | Zep hybrid search | Voyage AI embeddings + Neo4j vector + BM25 with RRF fusion |
+| Entity Resolution | Zep built-in | 3-stage: exact match → embedding similarity → LLM confirmation |
+| Dependency | `zep-cloud` SDK + API key | `neo4j` driver + Neo4j Desktop or Docker |
+
+**New files:**
+- `backend/app/services/local_graph_client.py` — Drop-in replacement for Zep SDK
+- `backend/app/services/voyage_embedding.py` — Voyage AI embedding wrapper
+- `backend/app/services/llm_entity_extractor.py` — LLM-based entity/relation extraction
+
+**Additional fix:** Streaming fallback for LLM providers that force SSE responses (e.g. ltcraft).
+
+---
+
 **MiroFish** is a next-generation AI prediction engine powered by multi-agent technology. By extracting seed information from the real world (such as breaking news, policy drafts, or financial signals), it automatically constructs a high-fidelity parallel digital world. Within this space, thousands of intelligent agents with independent personalities, long-term memory, and behavioral logic freely interact and undergo social evolution. You can inject variables dynamically from a "God's-eye view" to precisely deduce future trajectories — **rehearse the future in a digital sandbox, and win decisions after countless simulations**.
 
 > You only need to: Upload seed materials (data analysis reports or interesting novel stories) and describe your prediction requirements in natural language</br>
