@@ -225,10 +225,13 @@ class EdgeNamespace:
 # ============== GraphNamespace ==============
 
 class GraphNamespace:
+    MAX_CONCURRENT_LLM = 3  # limit concurrent LLM calls to avoid 429
+
     def __init__(self, driver, voyage: VoyageEmbedding, extractor: LLMEntityExtractor):
         self._driver = driver
         self._voyage = voyage
         self._extractor = extractor
+        self._llm_semaphore = threading.Semaphore(self.MAX_CONCURRENT_LLM)
         self.node = NodeNamespace(driver)
         self.edge = EdgeNamespace(driver)
         self.episode = EpisodeNamespace(driver)
@@ -348,6 +351,7 @@ class GraphNamespace:
 
     def _process_episode_async(self, graph_id: str, ep_uuid: str, text: str, ontology: Dict):
         """Background: extract entities/relations via LLM, embed, store in Neo4j."""
+        self._llm_semaphore.acquire()
         try:
             entities, relations = self._extractor.extract(text, ontology)
             self._store_entities(graph_id, entities, ep_uuid)
@@ -365,6 +369,8 @@ class GraphNamespace:
                     "MATCH (ep:Episode {uuid: $uuid}) SET ep.processed = true",
                     uuid=ep_uuid,
                 )
+        finally:
+            self._llm_semaphore.release()
 
     def add(self, graph_id: str, type: str = "text", data: str = ""):
         self.add_batch(graph_id, [{"data": data}])
