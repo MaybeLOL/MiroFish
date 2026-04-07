@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from openai import OpenAI
-from zep_cloud.client import Zep
+from .local_graph_client import LocalGraphClient
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -199,13 +199,13 @@ class OasisProfileGenerator:
         )
         
         # Zep客户端用于检索丰富上下文
-        self.zep_api_key = zep_api_key or Config.ZEP_API_KEY
+        self.zep_api_key = zep_api_key  # kept for interface compat
         self.zep_client = None
         self.graph_id = graph_id
         
         if self.zep_api_key:
             try:
-                self.zep_client = Zep(api_key=self.zep_api_key)
+                self.zep_client = LocalGraphClient(api_key=self.zep_api_key)
             except Exception as e:
                 logger.warning(f"Zep客户端初始化失败: {e}")
     
@@ -537,11 +537,36 @@ class OasisProfileGenerator:
                     temperature=0.7 - (attempt * 0.1)  # 每次重试降低温度
                     # 不设置max_tokens，让LLM自由发挥
                 )
-                
-                content = response.choices[0].message.content
-                
-                # 检查是否被截断（finish_reason不是'stop'）
-                finish_reason = response.choices[0].finish_reason
+
+                # Handle ltcraft streaming fallback
+                content = None
+                if isinstance(response, str) or (
+                    hasattr(response, 'choices') and response.choices and
+                    response.choices[0].message.content is None
+                ) or (
+                    hasattr(response, 'choices') and not response.choices
+                ):
+                    stream_resp = self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[
+                            {"role": "system", "content": self._get_system_prompt(is_individual)},
+                            {"role": "user", "content": prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.7 - (attempt * 0.1),
+                        stream=True,
+                    )
+                    parts = []
+                    for chunk in stream_resp:
+                        if hasattr(chunk, 'choices') and chunk.choices:
+                            delta = chunk.choices[0].delta
+                            if hasattr(delta, 'content') and delta.content:
+                                parts.append(delta.content)
+                    content = ''.join(parts)
+                    finish_reason = 'stop'
+                else:
+                    content = response.choices[0].message.content
+                    finish_reason = response.choices[0].finish_reason
                 if finish_reason == 'length':
                     logger.warning(f"LLM输出被截断 (attempt {attempt+1}), 尝试修复...")
                     content = self._fix_truncated_json(content)

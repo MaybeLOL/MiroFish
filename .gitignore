@@ -2,6 +2,10 @@
 .DS_Store
 Thumbs.db
 
+# Internal docs (not for public repo)
+docs/HANDOFF.md
+docs/superpowers/
+
 # 环境变量（保护敏感信息）
 .env
 .env.local

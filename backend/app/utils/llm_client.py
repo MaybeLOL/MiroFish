@@ -57,12 +57,34 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        
+
         if response_format:
             kwargs["response_format"] = response_format
-        
+
+        # Try non-streaming first, fall back to streaming if response is malformed
         response = self.client.chat.completions.create(**kwargs)
-        content = response.choices[0].message.content
+
+        # Some providers (e.g. ltcraft) force streaming responses even without stream=True
+        # In that case the SDK may return a raw string or an object with empty/null content
+        content = None
+        if isinstance(response, str) or (
+            hasattr(response, 'choices') and response.choices and
+            response.choices[0].message.content is None
+        ) or (
+            hasattr(response, 'choices') and not response.choices
+        ):
+            # Retry with explicit streaming
+            kwargs["stream"] = True
+            stream_resp = self.client.chat.completions.create(**kwargs)
+            parts = []
+            for chunk in stream_resp:
+                if hasattr(chunk, 'choices') and chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, 'content') and delta.content:
+                        parts.append(delta.content)
+            content = ''.join(parts)
+        else:
+            content = response.choices[0].message.content
         # 部分模型（如MiniMax M2.5）会在content中包含<think>思考内容，需要移除
         content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
         return content

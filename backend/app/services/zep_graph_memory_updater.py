@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from queue import Queue, Empty
 
-from zep_cloud.client import Zep
+from .local_graph_client import LocalGraphClient
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -238,12 +238,8 @@ class ZepGraphMemoryUpdater:
             api_key: Zep API Key（可选，默认从配置读取）
         """
         self.graph_id = graph_id
-        self.api_key = api_key or Config.ZEP_API_KEY
-        
-        if not self.api_key:
-            raise ValueError("ZEP_API_KEY未配置")
-        
-        self.client = Zep(api_key=self.api_key)
+        self.api_key = api_key  # kept for interface compat
+        self.client = LocalGraphClient(api_key=self.api_key)
         
         # 活动队列
         self._activity_queue: Queue = Queue()

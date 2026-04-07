@@ -450,9 +450,36 @@ class SimulationConfigGenerator:
                     temperature=0.7 - (attempt * 0.1)  # 每次重试降低温度
                     # 不设置max_tokens，让LLM自由发挥
                 )
-                
-                content = response.choices[0].message.content
-                finish_reason = response.choices[0].finish_reason
+
+                # Handle ltcraft streaming fallback
+                content = None
+                if isinstance(response, str) or (
+                    hasattr(response, 'choices') and response.choices and
+                    response.choices[0].message.content is None
+                ) or (
+                    hasattr(response, 'choices') and not response.choices
+                ):
+                    stream_resp = self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.7 - (attempt * 0.1),
+                        stream=True,
+                    )
+                    parts = []
+                    for chunk in stream_resp:
+                        if hasattr(chunk, 'choices') and chunk.choices:
+                            delta = chunk.choices[0].delta
+                            if hasattr(delta, 'content') and delta.content:
+                                parts.append(delta.content)
+                    content = ''.join(parts)
+                    finish_reason = 'stop'
+                else:
+                    content = response.choices[0].message.content
+                    finish_reason = response.choices[0].finish_reason
                 
                 # 检查是否被截断
                 if finish_reason == 'length':

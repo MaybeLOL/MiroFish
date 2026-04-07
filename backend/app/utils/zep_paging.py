@@ -10,9 +10,6 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from zep_cloud import InternalServerError
-from zep_cloud.client import Zep
-
 from .logger import get_logger
 
 logger = get_logger('mirofish.zep_paging')
@@ -41,7 +38,7 @@ def _fetch_page_with_retry(
     for attempt in range(max_retries):
         try:
             return api_call(*args, **kwargs)
-        except (ConnectionError, TimeoutError, OSError, InternalServerError) as e:
+        except (ConnectionError, TimeoutError, OSError, Exception) as e:
             last_exception = e
             if attempt < max_retries - 1:
                 logger.warning(
@@ -57,7 +54,7 @@ def _fetch_page_with_retry(
 
 
 def fetch_all_nodes(
-    client: Zep,
+    client,
     graph_id: str,
     page_size: int = _DEFAULT_PAGE_SIZE,
     max_items: int = _MAX_NODES,
@@ -103,7 +100,7 @@ def fetch_all_nodes(
 
 
 def fetch_all_edges(
-    client: Zep,
+    client,
     graph_id: str,
     page_size: int = _DEFAULT_PAGE_SIZE,
     max_retries: int = _DEFAULT_MAX_RETRIES,
